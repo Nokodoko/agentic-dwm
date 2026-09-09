@@ -80,10 +80,12 @@ static const Rule rules[] = {
 	{"gpu-select",        NULL,     NULL,           0,                     1,          -1,      1,           1, SchemeOlr,    "gpu",        800,   500},
 	{"trustgraph-viewer", NULL,     NULL,           0,                     1,          -1,      0,          -1, -1,           NULL,        0,      0},
 
+	/* --- Browsers that follow focus (mon -1, current tag): grafana/datadog + webui on eDP-1 too --- */
+	{"Vivaldi-stable",        NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
+	{"Vivaldi-flatpak",       NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
+
 	/* --- Mon 1 (DP-1, strip): Tag 1 (browsers, 1<<0) --- */
 	{"firefox",               NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Vivaldi-stable",        NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Vivaldi-flatpak",       NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"chromium",              NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"qutebrowser",           NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"Google-chrome",         NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
