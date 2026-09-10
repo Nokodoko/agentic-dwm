@@ -154,6 +154,25 @@ static const Layout layouts[] = {
 
 /* IPC */
 static const char *ipcsockpath = "/tmp/dwm.sock";
+
+/* Programs spawnsafe() may launch over IPC, matched against argv[0] exactly.
+ *
+ * The agent on the other end of the socket feeds window titles to a language
+ * model, and window titles are attacker-controlled -- a web page picks its own.
+ * This list is the boundary that keeps a prompt-injected model from execing
+ * anything it likes. Note there is no shell: arguments are passed through
+ * literally, so adding "sh", "bash" or "zsh" here would defeat the whole guard.
+ * Extend deliberately. */
+static const char *spawnallow[] = {
+	"/home/n0ko/scripts/wezterm-egl-fix.sh",
+	"/home/n0ko/scripts/lister.sh",
+	"/usr/local/bin/monty",
+	"wezterm",
+	"vivaldi-stable",
+	"btop",
+	"nvim",
+};
+
 static IPCCommand ipccommands[] = {
   IPCCOMMAND(  view,                1,      {ARG_TYPE_UINT}   ),
   IPCCOMMAND(  toggleview,          1,      {ARG_TYPE_UINT}   ),

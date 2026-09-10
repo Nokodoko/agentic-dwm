@@ -154,6 +154,25 @@ static const Layout layouts[] = {
 
 /* IPC */
 static const char *ipcsockpath = "/tmp/dwm.sock";
+
+/* Programs spawnsafe() may launch over IPC, matched against argv[0] exactly.
+ *
+ * The agent on the other end of the socket feeds window titles to a language
+ * model, and window titles are attacker-controlled -- a web page picks its own.
+ * This list is the boundary that keeps a prompt-injected model from execing
+ * anything it likes. Note there is no shell: arguments are passed through
+ * literally, so adding "sh", "bash" or "zsh" here would defeat the whole guard.
+ * Extend deliberately. */
+static const char *spawnallow[] = {
+	"/home/n0ko/scripts/wezterm-egl-fix.sh",
+	"/home/n0ko/scripts/lister.sh",
+	"/usr/local/bin/monty",
+	"wezterm",
+	"vivaldi-stable",
+	"btop",
+	"nvim",
+};
+
 static IPCCommand ipccommands[] = {
   IPCCOMMAND(  view,                1,      {ARG_TYPE_UINT}   ),
   IPCCOMMAND(  toggleview,          1,      {ARG_TYPE_UINT}   ),
@@ -211,7 +230,7 @@ static const char *yazi[]  = { "/home/n0ko/scripts/fm-launcher.sh", "yazi", NULL
 static const char *scratchpadcmd[] = {"kitty", "--class", "term-scratchpad", NULL};
 static const char *btopscratchpadcmd[] = {"kitty", "--class", "btop-scratchpad", "--", "btop", NULL};
 static const char *olrscratchpadcmd[] = {"kitty", "--class", "olr-scratchpad", "--", "/usr/local/bin/olr", NULL};
-static const char *aiscratchpadcmd[] = {"kitty", "--class", "ai-scratchpad", "--", "/home/n0ko/misc/hostlister.sh", NULL};
+static const char *aiscratchpadcmd[] = {"/home/n0ko/scripts/wezterm-egl-fix.sh", "start", "--class", "ai-scratchpad", "--always-new-process", "--", "/usr/local/bin/monty", NULL};
 static const char *steamscratchpadcmd[] = {"kitty", "--class", "stm-scratchpad", "--", "/home/n0ko/scripts/steam_launcher.zsh", NULL};
 static const char *sshscratchpadcmd[] = {"kitty", "--class", "ssh-scratchpad", "--", "ssh", "-t", "base", "zellij", "attach", "-c", "default", NULL};
 static const char *scrot_precision[] = { "/bin/sh", "-c", "scrot -s -e 'xclip -selection clipboard -t image/png -i $f && notify-send \"Screenshot Precision\" \"Copied to clipboard\"'", NULL };
