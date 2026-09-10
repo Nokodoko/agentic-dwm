@@ -22,10 +22,16 @@ type Registry struct {
 func DefaultRegistry() *Registry {
 	r := &Registry{backends: map[string]Backend{}}
 	r.Add(Backend{
+		Name:    "glm",
+		BaseURL: "http://10.0.0.1:30001/v1",
+		Model:   "glm-5.3-flash",
+		Note:    "GLM-5.3-Flash (llama.cpp on monty) — default, needs network",
+	})
+	r.Add(Backend{
 		Name:    "qwen",
-		BaseURL: "http://monty:8094/v1",
-		Model:   "qwen3.6-35b-a3b",
-		Note:    "Qwen3.6-35B-A3B MoE, 262k ctx (vLLM on monty) — default, needs network",
+		BaseURL: "http://192.168.50.190:30000/v1",
+		Model:   "qwen3.8-27b",
+		Note:    "Qwen3.8-27B (sglang on monty) — RETIRED 2026-08-27, kept for reference",
 	})
 	r.Add(Backend{
 		Name:    "local",

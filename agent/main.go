@@ -60,8 +60,8 @@ func run(socket, backend, ask string) error {
 		}
 		chosen = b
 	} else {
-		// Prefer the monty backend, fall back to the local model off-network.
-		if chosen, err = reg.FirstReachable(ctx, "qwen", "local"); err != nil {
+		// Prefer the GLM backend, fall back to the local model off-network.
+		if chosen, err = reg.FirstReachable(ctx, "glm", "local"); err != nil {
 			return err
 		}
 	}
