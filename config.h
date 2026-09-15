@@ -1,1 +1,1 @@
-config.multi.h
+config.tri.h
