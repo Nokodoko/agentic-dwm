@@ -702,7 +702,7 @@ ipc_get_dwm_client(IPCClient *ipc_client, const char *msg, const Monitor *mons)
 
   // Find client with specified window XID
   for (const Monitor *m = mons; m; m = m->next)
-    for (Client *c = m->clients; c; c = c->next)
+    for (Client *c = m->cl->clients; c; c = c->next)
       if (c->win == win) {
         yajl_gen gen;
         ipc_reply_init_message(&gen);
@@ -1098,7 +1098,7 @@ ipc_send_events(Monitor *mons, Monitor **lastselmon, Monitor *selmon)
   for (Monitor *m = mons; m; m = m->next) {
     unsigned int urg = 0, occ = 0, tagset = 0;
 
-    for (Client *c = m->clients; c; c = c->next) {
+    for (Client *c = m->cl->clients; c; c = c->next) {
       occ |= c->tags;
 
       if (c->isurgent) urg |= c->tags;

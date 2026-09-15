@@ -51,7 +51,10 @@
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
                                * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
 #define SCRATCHTAGS             (SCRATCHPAD_TAG | BTOP_SCRATCHPAD_TAG | OLR_SCRATCHPAD_TAG | AI_SCRATCHPAD_TAG | STEAM_SCRATCHPAD_TAG | SSH_SCRATCHPAD_TAG)
-#define ISVISIBLE(C)            ((C->tags & SCRATCHTAGS) ? (C->tags & C->mon->scratchvisible) : (C->tags & C->mon->tagset[C->mon->seltags]))
+/* single_tagset: one client list shared by every monitor, so visibility is a
+ * property of (client, monitor). Scratchpads stay bound to the monitor that
+ * toggled them; ordinary clients are visible wherever their tag is viewed. */
+#define ISVISIBLE(C, M)         ((C->tags & SCRATCHTAGS) ? (C->mon == M && (C->tags & M->scratchvisible)) : (C->tags & M->tagset[M->seltags]))
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
@@ -95,6 +98,7 @@ struct ClientState {
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
 };
 
+typedef struct Clientlist Clientlist;
 typedef struct Monitor Monitor;
 typedef struct Client Client;
 struct Client {
@@ -144,10 +148,9 @@ struct Monitor {
 	unsigned int scratchvisible; /* bitmask of visible scratchpad tags */
 	int showbar;
 	int topbar;
-	Client *clients;
+	Clientlist *cl;
 	Client *sel;
 	Client *lastsel;
-	Client *stack;
 	Monitor *next;
 	Window barwin;
 	const Layout *lt[2];
@@ -171,12 +174,18 @@ typedef struct {
 	int floath;
 } Rule;
 
+struct Clientlist {
+	Client *clients;
+	Client *stack;
+};
+
 /* function declarations */
 static void applyrules(Client *c);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
+static void attachclients(Monitor *m);
 static void attachstack(Client *c);
 static void buttonpress(XEvent *e);
 static void checkotherwm(void);
@@ -220,7 +229,7 @@ static void maprequest(XEvent *e);
 static void monocle(Monitor *m);
 static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
-static Client *nexttiled(Client *c);
+static Client *nexttiled(Client *c, Monitor *m);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
 static void moveresize(const Arg *arg);
@@ -315,6 +324,7 @@ static Display *dpy;
 static Drw *drw;
 static Monitor *mons, *selmon, *lastselmon;
 static Window root, wmcheckwin;
+static Clientlist *cl;
 
 #include "ipc.h"
 
@@ -380,7 +390,12 @@ applyrules(Client *c)
 				c->floatw = r->floatw;
 			if (r->floath > 0)
 				c->floath = r->floath;
-			for (m = mons; m && m->num != r->monitor; m = m->next);
+			/* single_tagset: a tag lives on whichever monitor currently
+			 * views it, so prefer that monitor; fall back to the rule's
+			 * explicit monitor index. */
+			for (m = mons; m && !(m->tagset[m->seltags] & r->tags & TAGMASK); m = m->next);
+			if (!m)
+				for (m = mons; m && m->num != r->monitor; m = m->next);
 			if (m)
 				c->mon = m;
 			/* First-match wins: prevents generic rules (e.g. "kitty")
@@ -468,9 +483,9 @@ void
 arrange(Monitor *m)
 {
 	if (m)
-		showhide(m->stack);
+		showhide(m->cl->stack);
 	else for (m = mons; m; m = m->next)
-		showhide(m->stack);
+		showhide(m->cl->stack);
 	if (m) {
 		arrangemon(m);
 		restack(m);
@@ -489,15 +504,49 @@ arrangemon(Monitor *m)
 void
 attach(Client *c)
 {
-	c->next = c->mon->clients;
-	c->mon->clients = c;
+	c->next = c->mon->cl->clients;
+	c->mon->cl->clients = c;
+}
+
+/* single_tagset: claim every client visible under m's tagset for m. A client
+ * that also carries a tag shown on another monitor is stripped down to m's
+ * tags so it never appears twice. */
+void
+attachclients(Monitor *m)
+{
+	Monitor *tm;
+	Client *c;
+	unsigned int utags = 0;
+	int rmons = 0;
+
+	if (!m)
+		return;
+	for (tm = mons; tm; tm = tm->next)
+		if (tm != m)
+			utags |= tm->tagset[tm->seltags];
+	for (c = m->cl->clients; c; c = c->next) {
+		if (c->tags & SCRATCHTAGS)
+			continue;
+		if (ISVISIBLE(c, m)) {
+			if (c->tags & utags) {
+				c->tags = c->tags & m->tagset[m->seltags];
+				rmons = 1;
+			}
+			unfocus(c, 1);
+			c->mon = m;
+		}
+	}
+	if (rmons)
+		for (tm = mons; tm; tm = tm->next)
+			if (tm != m)
+				arrange(tm);
 }
 
 void
 attachstack(Client *c)
 {
-	c->snext = c->mon->stack;
-	c->mon->stack = c;
+	c->snext = c->mon->cl->stack;
+	c->mon->cl->stack = c;
 }
 
 void
@@ -521,7 +570,7 @@ buttonpress(XEvent *e)
 		 * reserve no click width either, or every tag click lands on the
 		 * wrong index. This predicate MUST stay identical to drawbar's. */
 		unsigned int occ = 0;
-		for (c = selmon->clients; c; c = c->next)
+		for (c = cl->clients; c; c = c->next)
 			occ |= c->tags;
 		i = x = 0;
 		do {
@@ -591,14 +640,12 @@ cleanup(void)
 {
 	Arg a = {.ui = ~0};
 	Layout foo = { "", NULL };
-	Monitor *m;
 	size_t i;
 
 	view(&a);
 	selmon->lt[selmon->sellt] = &foo;
-	for (m = mons; m; m = m->next)
-		while (m->stack)
-			unmanage(m->stack, 0);
+	while (cl->stack)
+		unmanage(cl->stack, 0);
 	XUngrabKey(dpy, AnyKey, AnyModifier, root);
 	while (mons)
 		cleanupmon(mons);
@@ -692,8 +739,8 @@ configurenotify(XEvent *e)
 			drw_resize(drw, sw, bh);
 			updatebars();
 			for (m = mons; m; m = m->next) {
-				for (c = m->clients; c; c = c->next)
-					if (c->isfullscreen)
+				for (c = cl->clients; c; c = c->next)
+					if (c->isfullscreen && c->mon == m)
 						resizeclient(c, m->mx, m->my, m->mw, m->mh);
 				XMoveResizeWindow(dpy, m->barwin, m->wx, m->by, m->ww, bh);
 			}
@@ -738,7 +785,7 @@ configurerequest(XEvent *e)
 				c->y = m->my + (m->mh / 2 - HEIGHT(c) / 2); /* center in y direction */
 			if ((ev->value_mask & (CWX|CWY)) && !(ev->value_mask & (CWWidth|CWHeight)))
 				configure(c);
-			if (ISVISIBLE(c))
+			if (ISVISIBLE(c, m))
 				XMoveResizeWindow(dpy, c->win, c->x, c->y, c->w, c->h);
 		} else
 			configure(c);
@@ -758,11 +805,35 @@ configurerequest(XEvent *e)
 Monitor *
 createmon(void)
 {
-	Monitor *m;
-	int i;
+	Monitor *m, *tm;
+	int i, n;
+
+	/* single_tagset: every monitor must view a distinct tag. Bail out if
+	 * there are more monitors than non-scratchpad tags. */
+	for (n = 1, tm = mons; tm; n++, tm = tm->next);
+	if (n > LENGTH(tags) || ((1 << n) - 1) & SCRATCHTAGS) {
+		fprintf(stderr, "dwm: failed to add monitor, number of tags exceeded\n");
+		return NULL;
+	}
+	/* find the first non-scratchpad tag no monitor is viewing */
+	for (i = 0; i < LENGTH(tags); i++) {
+		if ((1 << i) & SCRATCHTAGS)
+			continue;
+		for (tm = mons; tm && !(tm->tagset[tm->seltags] & (1 << i)); tm = tm->next);
+		if (!tm)
+			break;
+	}
+	/* no free tag: hand out tags 1..n in monitor order */
+	if (i >= LENGTH(tags)) {
+		for (i = 0, tm = mons; tm; tm = tm->next, i++) {
+			tm->seltags ^= 1;
+			tm->tagset[tm->seltags] = (1 << i) & TAGMASK;
+		}
+	}
 
 	m = ecalloc(1, sizeof(Monitor));
-	m->tagset[0] = m->tagset[1] = 1;
+	m->cl = cl;
+	m->tagset[0] = m->tagset[1] = (1 << i) & TAGMASK;
 	m->mfact = mfact;
 	m->nmaster = nmaster;
 	m->showbar = showbar;
@@ -803,7 +874,7 @@ detach(Client *c)
 {
 	Client **tc;
 
-	for (tc = &c->mon->clients; *tc && *tc != c; tc = &(*tc)->next);
+	for (tc = &c->mon->cl->clients; *tc && *tc != c; tc = &(*tc)->next);
 	*tc = c->next;
 }
 
@@ -812,11 +883,11 @@ detachstack(Client *c)
 {
 	Client **tc, *t;
 
-	for (tc = &c->mon->stack; *tc && *tc != c; tc = &(*tc)->snext);
+	for (tc = &c->mon->cl->stack; *tc && *tc != c; tc = &(*tc)->snext);
 	*tc = c->snext;
 
 	if (c == c->mon->sel) {
-		for (t = c->mon->stack; t && !ISVISIBLE(t); t = t->snext);
+		for (t = c->mon->cl->stack; t && !ISVISIBLE(t, c->mon); t = t->snext);
 		c->mon->sel = t;
 	}
 }
@@ -967,7 +1038,7 @@ drawbar(Monitor *m)
 		tw = statusw = m->ww - drawstatusbar(m, bh, stext);
 	}
 
-	for (c = m->clients; c; c = c->next) {
+	for (c = cl->clients; c; c = c->next) {
 		occ |= c->tags;
 		if (c->isurgent)
 			urg |= c->tags;
@@ -1087,8 +1158,8 @@ expose(XEvent *e)
 void
 focus(Client *c)
 {
-	if (!c || !ISVISIBLE(c))
-		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
+	if (!c || !ISVISIBLE(c, selmon))
+		for (c = selmon->cl->stack; c && !ISVISIBLE(c, selmon); c = c->snext);
 	if (selmon->sel && selmon->sel != c)
 		unfocus(selmon->sel, 0);
 	if (c) {
@@ -1142,16 +1213,16 @@ focusstack(const Arg *arg)
 	if (!selmon->sel || (selmon->sel->isfullscreen && lockfullscreen))
 		return;
 	if (arg->i > 0) {
-		for (c = selmon->sel->next; c && !ISVISIBLE(c); c = c->next);
+		for (c = selmon->sel->next; c && !ISVISIBLE(c, selmon); c = c->next);
 		if (!c)
-			for (c = selmon->clients; c && !ISVISIBLE(c); c = c->next);
+			for (c = selmon->cl->clients; c && !ISVISIBLE(c, selmon); c = c->next);
 	} else {
-		for (i = selmon->clients; i != selmon->sel; i = i->next)
-			if (ISVISIBLE(i))
+		for (i = selmon->cl->clients; i != selmon->sel; i = i->next)
+			if (ISVISIBLE(i, selmon))
 				c = i;
 		if (!c)
 			for (; i; i = i->next)
-				if (ISVISIBLE(i))
+				if (ISVISIBLE(i, selmon))
 					c = i;
 	}
 	if (c) {
@@ -1170,22 +1241,23 @@ focuswin(const Arg *arg)
 	Monitor *m;
 	Window w = (Window)arg->ui;
 
-	for (m = mons; m; m = m->next) {
-		for (c = m->clients; c; c = c->next) {
-			if (c->win != w)
-				continue;
-			if (m != selmon) {
-				unfocus(selmon->sel, 0);
-				selmon = m;
-			}
-			if (!ISVISIBLE(c)) {
-				const Arg ta = {.ui = c->tags};
-				view(&ta);
-			}
-			focus(c);
-			restack(m);
-			return;
+	for (c = cl->clients; c; c = c->next) {
+		if (c->win != w)
+			continue;
+		/* single_tagset: if some monitor already views this client's tag,
+		 * go there instead of pulling the tag onto the current monitor. */
+		for (m = mons; m && !ISVISIBLE(c, m); m = m->next);
+		if (m && m != selmon) {
+			unfocus(selmon->sel, 0);
+			selmon = m;
 		}
+		if (!ISVISIBLE(c, selmon)) {
+			const Arg ta = {.ui = c->tags};
+			view(&ta);
+		}
+		focus(c);
+		restack(selmon);
+		return;
 	}
 }
 
@@ -1544,12 +1616,12 @@ monocle(Monitor *m)
 	unsigned int n = 0;
 	Client *c;
 
-	for (c = m->clients; c; c = c->next)
-		if (ISVISIBLE(c))
+	for (c = m->cl->clients; c; c = c->next)
+		if (ISVISIBLE(c, m))
 			n++;
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
-	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
+	for (c = nexttiled(m->cl->clients, m); c; c = nexttiled(c->next, m))
 		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
 }
 
@@ -1663,9 +1735,9 @@ moveresize(const Arg *arg)
 }
 
 Client *
-nexttiled(Client *c)
+nexttiled(Client *c, Monitor *m)
 {
-	for (; c && (c->isfloating || !ISVISIBLE(c)); c = c->next);
+	for (; c && (c->isfloating || !ISVISIBLE(c, m)); c = c->next);
 	return c;
 }
 
@@ -1830,8 +1902,8 @@ restack(Monitor *m)
 	if (m->lt[m->sellt]->arrange) {
 		wc.stack_mode = Below;
 		wc.sibling = m->barwin;
-		for (c = m->stack; c; c = c->snext)
-			if (!c->isfloating && ISVISIBLE(c)) {
+		for (c = m->cl->stack; c; c = c->snext)
+			if (!c->isfloating && ISVISIBLE(c, m)) {
 				XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
 				wc.sibling = c->win;
 			}
@@ -1934,11 +2006,9 @@ sendmon(Client *c, Monitor *m)
 	if (c->mon == m)
 		return;
 	unfocus(c, 1);
-	detach(c);
 	detachstack(c);
 	c->mon = m;
 	c->tags = m->tagset[m->seltags]; /* assign tags of target monitor */
-	attach(c);
 	attachstack(c);
 	focus(NULL);
 	arrange(NULL);
@@ -2073,6 +2143,9 @@ setup(void)
 	sa.sa_handler = SIG_IGN;
 	sigaction(SIGCHLD, &sa, NULL);
 
+	/* single_tagset: the one client list every monitor shares */
+	cl = ecalloc(1, sizeof(Clientlist));
+
 	/* clean up any zombies (inherited from .xinitrc etc) immediately */
 	while (waitpid(-1, NULL, WNOHANG) > 0);
 
@@ -2186,7 +2259,7 @@ showhide(Client *c)
 {
 	if (!c)
 		return;
-	if (ISVISIBLE(c)) {
+	if (ISVISIBLE(c, c->mon)) {
 		/* show clients top down */
 		XMoveWindow(dpy, c->win, c->x, c->y);
 		if ((!c->mon->lt[c->mon->sellt]->arrange || c->isfloating) && !c->isfullscreen)
@@ -2272,68 +2345,38 @@ spawnsafe(const Arg *arg)
 	fprintf(stderr, "dwm: spawnsafe refused '%s': not in spawnallow\n", argv[0]);
 }
 
+/* single_tagset: a tag is shown on at most one monitor. Tagging a client
+ * with a tag another monitor views moves it to that monitor. */
 void
 tag(const Arg *arg)
 {
-	int i, targetmon;
 	Monitor *m;
 	Client *c;
-	Monitor *origmon;
+	unsigned int newtags;
 
 	if (!selmon->sel || !(arg->ui & TAGMASK))
 		return;
-
 	c = selmon->sel;
-	origmon = selmon;
-
-	/* find which tag bit is set */
-	for (i = 0; !(arg->ui & 1 << i); i++) ;
-
-	/* look up the owning monitor for this tag */
-	if (i < LENGTH(tagmonmap))
-		targetmon = tagmonmap[i];
-	else
-		targetmon = selmon->num;
-
-	/* find the target monitor */
-	for (m = mons; m && m->num != targetmon; m = m->next) ;
-	if (!m)
-		m = selmon;
-
-	/* send to target monitor if different */
-	if (m != origmon) {
-		unfocus(c, 1);
-		detach(c);
-		detachstack(c);
-		c->mon = m;
-		c->tags = arg->ui & TAGMASK;
-		attach(c);
-		attachstack(c);
-		/* switch target monitor's view to the destination tag if not already shown */
-		if (!(m->tagset[m->seltags] & (arg->ui & TAGMASK))) {
-			m->seltags ^= 1;
-			m->tagset[m->seltags] = arg->ui & TAGMASK;
+	newtags = arg->ui & TAGMASK;
+	for (m = mons; m; m = m->next) {
+		if (m != selmon && (m->tagset[m->seltags] & newtags)) {
+			/* refuse "all tags" (Super+Shift+0) with several monitors */
+			if (newtags & selmon->tagset[selmon->seltags])
+				return;
+			unfocus(c, 1);
+			detachstack(c);
+			c->tags = newtags;
+			c->mon = m;
+			attachstack(c);
+			focus(NULL);
+			arrange(selmon);
+			arrange(m);
+			return;
 		}
-		/* always sync target monitor's pertag state for the destination tag */
-		m->pertag->prevtag = m->pertag->curtag;
-		m->pertag->curtag = i + 1;
-		m->nmaster = m->pertag->nmasters[m->pertag->curtag];
-		m->mfact = m->pertag->mfacts[m->pertag->curtag];
-		m->sellt = m->pertag->sellts[m->pertag->curtag];
-		m->lt[m->sellt] = m->pertag->ltidxs[m->pertag->curtag][m->sellt];
-		m->lt[m->sellt^1] = m->pertag->ltidxs[m->pertag->curtag][m->sellt^1];
-		if (m->showbar != m->pertag->showbars[m->pertag->curtag]) {
-			m->showbar = m->pertag->showbars[m->pertag->curtag];
-			updatebarpos(m);
-		}
-		focus(NULL);
-		arrange(origmon);
-		arrange(m);
-	} else {
-		c->tags = arg->ui & TAGMASK;
-		focus(NULL);
-		arrange(selmon);
 	}
+	c->tags = newtags;
+	focus(NULL);
+	arrange(selmon);
 }
 
 void
@@ -2350,7 +2393,7 @@ tile(Monitor *m)
 	unsigned int i, n, h, mw, my, ty;
 	Client *c;
 
-	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
+	for (n = 0, c = nexttiled(m->cl->clients, m); c; c = nexttiled(c->next, m), n++);
 	if (n == 0)
 		return;
 
@@ -2358,7 +2401,7 @@ tile(Monitor *m)
 		mw = m->nmaster ? (m->ww - gappx) * m->mfact : 0;
 	else
 		mw = m->ww;
-	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
+	for (i = my = ty = 0, c = nexttiled(m->cl->clients, m); c; c = nexttiled(c->next, m), i++)
 		if (i < m->nmaster) {
 			h = (m->wh - my - gappx) / (MIN(n, m->nmaster) - i);
 			resize(c, m->wx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
@@ -2398,81 +2441,39 @@ togglefloating(const Arg *arg)
 void
 toggletag(const Arg *arg)
 {
-	unsigned int newtags;
-	int i, targetmon;
 	Monitor *m;
-	Client *c;
-	Monitor *origmon;
+	unsigned int newtags;
 
 	if (!selmon->sel)
 		return;
 	newtags = selmon->sel->tags ^ (arg->ui & TAGMASK);
 	if (!newtags)
 		return;
-
-	c = selmon->sel;
-	origmon = selmon;
-
-	/* find which tag bit is being toggled */
-	for (i = 0; !(arg->ui & 1 << i); i++) ;
-
-	/* look up the owning monitor for this tag */
-	if (i < LENGTH(tagmonmap))
-		targetmon = tagmonmap[i];
-	else
-		targetmon = selmon->num;
-
-	/* find the target monitor */
-	for (m = mons; m && m->num != targetmon; m = m->next) ;
-	if (!m)
-		m = selmon;
-
-	/* If we're ADDING a tag that lives on a different monitor, move the client.
-	 * If we're REMOVING the tag (turning the bit off), keep the client on its
-	 * current monitor — the remaining tag(s) determine where it should live. */
-	if (m != origmon && (arg->ui & TAGMASK & newtags)) {
-		unfocus(c, 1);
-		detach(c);
-		detachstack(c);
-		c->mon = m;
-		c->tags = newtags;
-		attach(c);
-		attachstack(c);
-		if (!(m->tagset[m->seltags] & (arg->ui & TAGMASK))) {
-			m->seltags ^= 1;
-			m->tagset[m->seltags] = arg->ui & TAGMASK;
-		}
-		m->pertag->prevtag = m->pertag->curtag;
-		m->pertag->curtag = i + 1;
-		m->nmaster = m->pertag->nmasters[m->pertag->curtag];
-		m->mfact = m->pertag->mfacts[m->pertag->curtag];
-		m->sellt = m->pertag->sellts[m->pertag->curtag];
-		m->lt[m->sellt] = m->pertag->ltidxs[m->pertag->curtag][m->sellt];
-		m->lt[m->sellt^1] = m->pertag->ltidxs[m->pertag->curtag][m->sellt^1];
-		if (m->showbar != m->pertag->showbars[m->pertag->curtag]) {
-			m->showbar = m->pertag->showbars[m->pertag->curtag];
-			updatebarpos(m);
-		}
-		focus(NULL);
-		arrange(origmon);
-		arrange(m);
-	} else {
-		c->tags = newtags;
-		focus(NULL);
-		arrange(selmon);
-	}
+	/* single_tagset: refuse tags currently viewed on another monitor */
+	for (m = mons; m; m = m->next)
+		if (m != selmon && (newtags & m->tagset[m->seltags]))
+			return;
+	selmon->sel->tags = newtags;
+	focus(NULL);
+	arrange(selmon);
 }
 
 void
 toggleview(const Arg *arg)
 {
+	Monitor *m;
 	unsigned int newtagset = selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK);
 
-	if (newtagset) {
-		selmon->tagset[selmon->seltags] = newtagset;
-		focus(NULL);
-		arrange(selmon);
-	}
+	if (!newtagset)
+		return;
+	/* single_tagset: never show the same tag on two monitors */
+	for (m = mons; m; m = m->next)
+		if (m != selmon && (newtagset & m->tagset[m->seltags]))
+			return;
+	selmon->tagset[selmon->seltags] = newtagset;
+	attachclients(selmon);
+	arrange(selmon);
+	focus(NULL);
 }
 
 void
@@ -2570,11 +2571,11 @@ updateclientlist(void)
 	Monitor *m;
 
 	XDeleteProperty(dpy, root, netatom[NetClientList]);
-	for (m = mons; m; m = m->next)
-		for (c = m->clients; c; c = c->next)
-			XChangeProperty(dpy, root, netatom[NetClientList],
-				XA_WINDOW, 32, PropModeAppend,
-				(unsigned char *) &(c->win), 1);
+	(void)m;
+	for (c = cl->clients; c; c = c->next)
+		XChangeProperty(dpy, root, netatom[NetClientList],
+			XA_WINDOW, 32, PropModeAppend,
+			(unsigned char *) &(c->win), 1);
 }
 
 int
@@ -2602,9 +2603,10 @@ updategeom(void)
 		/* new monitors if nn > n */
 		for (i = n; i < nn; i++) {
 			for (m = mons; m && m->next; m = m->next);
-			if (m)
+			if (m) {
 				m->next = createmon();
-			else
+				attachclients(m->next);
+			} else
 				mons = createmon();
 		}
 		for (i = 0, m = mons; i < nn && m; m = m->next, i++)
@@ -2625,16 +2627,15 @@ updategeom(void)
 		/* removed monitors if n > nn */
 		for (i = nn; i < n; i++) {
 			for (m = mons; m && m->next; m = m->next);
-			while ((c = m->clients)) {
-				dirty = 1;
-				m->clients = c->next;
-				detachstack(c);
-				c->mon = mons;
-				attach(c);
-				attachstack(c);
-			}
 			if (m == selmon)
 				selmon = mons;
+			/* single_tagset: clients stay in the shared list; just re-home
+			 * the ones that pointed at the vanishing monitor. */
+			for (c = cl->clients; c; c = c->next) {
+				dirty = 1;
+				if (c->mon == m)
+					c->mon = selmon;
+			}
 			cleanupmon(m);
 		}
 		free(unique);
@@ -2778,9 +2779,28 @@ view(const Arg *arg)
 {
 	int i;
 	unsigned int tmptag;
+	Monitor *m;
+	unsigned int newtagset = selmon->tagset[selmon->seltags ^ 1];
 
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
 		return;
+	/* single_tagset: if another monitor shows the requested tag, swap the
+	 * two monitors' tagsets so no tag is ever viewed twice. */
+	if (arg->ui & TAGMASK)
+		newtagset = arg->ui & TAGMASK;
+	for (m = mons; m; m = m->next) {
+		if (m != selmon && (newtagset & m->tagset[m->seltags])) {
+			/* refuse "all tags" (Super+0) with several monitors */
+			if (newtagset & selmon->tagset[selmon->seltags])
+				return;
+			m->sel = selmon->sel;
+			m->seltags ^= 1;
+			m->tagset[m->seltags] = selmon->tagset[selmon->seltags];
+			attachclients(m);
+			arrange(m);
+			break;
+		}
+	}
 	selmon->seltags ^= 1; /* toggle sel tagset */
 	if (arg->ui & TAGMASK) {
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
@@ -2807,51 +2827,39 @@ view(const Arg *arg)
 	if (selmon->showbar != selmon->pertag->showbars[selmon->pertag->curtag])
 		togglebar(NULL);
 
-	focus(NULL);
+	attachclients(selmon);
 	arrange(selmon);
+	focus(NULL);
 }
 
+/* Super+N: if a monitor already shows tag N, jump focus there (each monitor
+ * is "its own tag"); otherwise view tag N on the current monitor. */
 void
 viewmon(const Arg *arg)
 {
-	int i, targetmon;
 	Monitor *m;
 	Client *c;
 
-	/* find which tag bit is set */
 	if (!(arg->ui & TAGMASK))
 		return;
-	for (i = 0; !(arg->ui & 1 << i); i++) ;
 
-	/* look up the owning monitor for this tag */
-	if (i < LENGTH(tagmonmap))
-		targetmon = tagmonmap[i];
-	else
-		targetmon = 0;
-
-	/* find the target monitor */
-	for (m = mons; m && m->num != targetmon; m = m->next) ;
-	if (!m)
-		return;
-
-	/* switch to target monitor if different */
-	if (m != selmon) {
+	for (m = mons; m && !(m->tagset[m->seltags] & arg->ui & TAGMASK); m = m->next);
+	if (m && m != selmon) {
 		unfocus(selmon->sel, 0);
 		selmon = m;
-	}
-
-	/* switch that monitor's view */
-	view(arg);
+		focus(NULL);
+	} else if (!m)
+		view(arg);
 
 	/* focus a non-scratchpad visible client (scratchpads can steal focus) */
-	for (c = selmon->stack; c; c = c->snext)
-		if (ISVISIBLE(c) && !(c->tags & SCRATCHTAGS))
+	for (c = selmon->cl->stack; c; c = c->snext)
+		if (ISVISIBLE(c, selmon) && !(c->tags & SCRATCHTAGS))
 			break;
 	if (c)
 		focus(c);
 
 	/* warp pointer to the focused client, or center of target monitor */
-	if (selmon->sel && ISVISIBLE(selmon->sel)) {
+	if (selmon->sel && ISVISIBLE(selmon->sel, selmon)) {
 		XWarpPointer(dpy, None, selmon->sel->win, 0, 0, 0, 0,
 			selmon->sel->w / 2, selmon->sel->h / 2);
 	} else {
@@ -2866,10 +2874,10 @@ wintoclient(Window w)
 	Client *c;
 	Monitor *m;
 
-	for (m = mons; m; m = m->next)
-		for (c = m->clients; c; c = c->next)
-			if (c->win == w)
-				return c;
+	(void)m;
+	for (c = cl->clients; c; c = c->next)
+		if (c->win == w)
+			return c;
 	return NULL;
 }
 
@@ -2933,7 +2941,7 @@ zoom(const Arg *arg)
 
 	if (!selmon->lt[selmon->sellt]->arrange || !c || c->isfloating)
 		return;
-	if (c == nexttiled(selmon->clients) && !(c = nexttiled(c->next)))
+	if (c == nexttiled(selmon->cl->clients, selmon) && !(c = nexttiled(c->next, selmon)))
 		return;
 	pop(c);
 }
@@ -2998,14 +3006,9 @@ togglescratch(const Arg *arg)
 	else if (strcmp(class, "ssh-scratchpad") == 0)
 		scratchtag = SSH_SCRATCHPAD_TAG;
 
-	/* Find the scratchpad client on any monitor */
-	for (m = mons; m; m = m->next) {
-		for (c = m->clients; c; c = c->next) {
-			if (c->tags & scratchtag)
-				break;
-		}
-		if (c) break;
-	}
+	/* Find the scratchpad client (shared list, any monitor) */
+	(void)m;
+	for (c = cl->clients; c && !(c->tags & scratchtag); c = c->next);
 
 	if (!c) {
 		/* Scratchpad not yet spawned, spawn it and mark as visible */
@@ -3028,10 +3031,8 @@ togglescratch(const Arg *arg)
 		if (c->mon != selmon) {
 			/* Hide from old monitor */
 			c->mon->scratchvisible &= ~scratchtag;
-			detach(c);
 			detachstack(c);
 			c->mon = selmon;
-			attach(c);
 			attachstack(c);
 		}
 

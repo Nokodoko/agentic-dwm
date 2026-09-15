@@ -1,16 +1,20 @@
-/* config.tri.h -- "singletag" variant: docked 3-monitor layout.
+/* config.tri.h -- "singletag" variant: docked 3-monitor layout on the
+ * suckless single_tagset port (branch 'singletag', ~/bling/dwm-singletag).
  *
  * Built by `dwm-hotswap.sh singletag`, selected automatically by
  * dock-monitor.sh / .xinitrc when two non-4K externals are connected, and
  * by ~/.screenlayout/3monitors.sh (-> ~/scripts/tri-layout.sh).
  *
- * Every tag has exactly ONE home monitor (tagmonmap below); Super+N jumps to
- * that monitor and views the tag there, Super+Shift+N sends the window there.
+ * One shared tagset, THREE visible tags, and each monitor views exactly one
+ * of them, so "a monitor is a tag": Super+1/2/3 focuses that monitor,
+ * Super+Shift+1/2/3 sends the window there. Windows open on the focused
+ * monitor unless a rule says otherwise. The six trailing tags are hidden
+ * scratchpad tags.
  *
  * Monitor numbering follows Xinerama order (xrandr --listmonitors):
- *   mon 0  eDP-1  2560x1600 @ 1920x0     primary, top right
- *   mon 1  DP-1   1920x1200 @ 0x400      left
- *   mon 2  DP-2   2560x720  @ 1920x1600  strip, below eDP-1
+ *   mon 0 / tag 1  eDP-1  2560x1600 @ 1920x0     primary, top right
+ *   mon 1 / tag 2  DP-1   1920x1200 @ 0x400      left
+ *   mon 2 / tag 3  DP-2   2560x720  @ 1920x1600  strip, below eDP-1
  */
 /* See LICENSE file for copyright and license details. */
 
@@ -45,8 +49,8 @@ static const char *colors[][3]      = {
 	[SchemeSteam] = { col_gray3, col_gray1, col_purple },
 };
 
-/* tagging — nerd font icons: web, chat, term, team, rocket, code, game, slack, music */
-static const char *tags[] = { "\xef\x82\xac", "\xef\x81\xb5", "\xef\x92\x89", "\xef\x83\x80", "\xef\x84\xb5", "\xef\x84\xa1", "\xef\x84\x9b", "\xef\x86\x98", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+/* tagging — one tag per monitor: laptop (term icon), left (web icon), strip (music icon) */
+static const char *tags[] = { "\xef\x92\x89", "\xef\x82\xac", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
@@ -59,19 +63,12 @@ static const Rule rules[] = {
 	 *   WM_CLASS(STRING) = instance, class
 	 *   WM_NAME(STRING) = title
 	 *
-	 * Tri-monitor (docked) singletag rules:
-	 *   Mon 1 (DP-1, 1920x1200, left): reference / comms, tags 1-2
-	 *     - Browsers (www) -> tag 1 (1<<0)
-	 *     - Chat (cht)     -> tag 2 (1<<1)
-	 *   Mon 0 (eDP-1, 2560x1600):    primary work area, tags 3-7
-	 *     - Terminals (>_) -> tag 3 (1<<2)
-	 *     - Team/Agents    -> tag 4 (1<<3)
-	 *     - Monitoring     -> tag 5 (1<<4)
-	 *     - Code/Agents    -> tag 6 (1<<5)
-	 *     - Games          -> tag 7 (1<<6)
-	 *   Mon 2 (DP-2, 2560x720 strip): glanceable, tags 8-9
-	 *     - Slack          -> tag 8 (1<<7)
-	 *     - Media          -> tag 9 (1<<8)
+	 * singletag rules: tag N == monitor N-1. A rule's tags mask picks the
+	 * monitor (applyrules finds whoever views that tag); tags 0 + monitor -1
+	 * means "open where focus is".
+	 *   tag 1 (1<<0)  eDP-1  terminals, agents, games
+	 *   tag 2 (1<<1)  DP-1   browsers, chat
+	 *   tag 3 (1<<2)  DP-2   media strip
 	 *   Scratchpads: floating, monitor -1 (follow focus)
 	 */
 	/* class              instance  title           tags mask              isfloating  monitor  iscentered  bw  borderscheme  bordertitle  floatw  floath */
@@ -98,39 +95,33 @@ static const Rule rules[] = {
 	{"Vivaldi-stable",        NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
 	{"Vivaldi-flatpak",       NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- Mon 1 (DP-1, left): Tag 1 (browsers, 1<<0) --- */
-	{"firefox",               NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"chromium",              NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"qutebrowser",           NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Google-chrome",         NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-
-	/* --- Mon 1 (DP-1, left): Tag 2 (chat, 1<<1) --- */
+	/* --- tag 2 / DP-1 (left): browsers + chat --- */
+	{"firefox",               NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"chromium",              NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"qutebrowser",           NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Google-chrome",         NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"teams-for-linux",       NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"Slack",                 NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"discord",               NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"ZapZap",                NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"Electron",              NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- Mon 0 (eDP-1): Tag 3 (terminals, 1<<2) --- */
-	{"St",                    NULL,     NULL,       1 << 2,            0,           0,      1,          -1, -1,           NULL,        0,      0},
-	{"kitty",                 NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"neovide",               NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"wireshark",             NULL,     NULL,       1 << 2,            0,           0,      -1,         -1, -1,           NULL,        0,      0},
+	/* --- tag 1 / eDP-1: terminals, agents, games --- */
+	{"St",                    NULL,     NULL,       1 << 0,            0,           0,      1,          -1, -1,           NULL,        0,      0},
+	{"kitty",                 NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"neovide",               NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"wireshark",             NULL,     NULL,       1 << 0,            0,           0,      -1,         -1, -1,           NULL,        0,      0},
+	{"cmdr-dashboard",        NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-terminal",         NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"overstory-terminal",    NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-feed",             NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-costs",            NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-logs",             NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-errors",           NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"steam",                 NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- Mon 0 (eDP-1): Tag 4 (team/agents, 1<<3) --- */
-	{"cmdr-dashboard",        NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-terminal",         NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"overstory-terminal",    NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-feed",             NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-costs",            NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-logs",             NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-errors",           NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-
-	/* --- Mon 0 (eDP-1): games (1<<6) --- */
-	{"steam",                 NULL,     NULL,       1 << 6,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-
-	/* --- Mon 2 (DP-2 strip): media (1<<8) --- */
-	{"mpv",                   NULL,     NULL,       1 << 8,            0,           2,      0,          -1, -1,           NULL,        0,      0},
+	/* --- tag 3 / DP-2 (strip): media --- */
+	{"mpv",                   NULL,     NULL,       1 << 2,            0,           2,      0,          -1, -1,           NULL,        0,      0},
 
 	/*
 	 * Trustgraph / localhost:3000 — use Vivaldi app mode.
@@ -139,20 +130,13 @@ static const Rule rules[] = {
 	{NULL,                    NULL,     "localhost",  0,               1,          -1,      1,          -1, -1,           NULL,        1200,   900},
 };
 
-/* default tags per monitor (index = monitor number) */
+/* default tags per monitor (index = monitor number). With single_tagset
+ * these MUST be pairwise distinct: a tag can only be viewed on one monitor. */
 static const unsigned int defaulttags[] = {
-    1 << 2,   /* mon 0 (eDP-1, 2560x1600):   tag 3 (term)  */
-    1 << 0,   /* mon 1 (DP-1, 1920x1200):    tag 1 (www)   */
-    1 << 7,   /* mon 2 (DP-2, 2560x720):     tag 8 (slack) */
+    1 << 0,   /* mon 0 (eDP-1, 2560x1600):   tag 1 */
+    1 << 1,   /* mon 1 (DP-1, 1920x1200):    tag 2 */
+    1 << 2,   /* mon 2 (DP-2, 2560x720):     tag 3 */
 };
-
-/* tag-to-monitor map: which monitor owns each tag (index = tag index) */
-static const int tagmonmap[] = { 1, 1, 0, 0, 0, 0, 0, 2, 2 };
-/*                                ^  ^  ^  ^  ^  ^  ^  ^  ^
- *                           tag: 1  2  3  4  5  6  7  8  9
- *                          icon: ww ch >_ tm rk cd gm sl mu
- *                           mon: 1  1  0  0  0  0  0  2  2
- *                          name: DP1 DP1 eDP eDP eDP eDP eDP DP2 DP2 */
 
 /* layout(s) */
 const float mfact     = 0.55; /* factor of master area size [0.05..0.95] */
@@ -347,15 +331,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
-	TAGKEYS(                        XK_1,                      0)
-	TAGKEYS(                        XK_2,                      1)
-	TAGKEYS(                        XK_3,                      2)
-	TAGKEYS(                        XK_4,                      3)
-	TAGKEYS(                        XK_5,                      4)
-	TAGKEYS(                        XK_6,                      5)
-	TAGKEYS(                        XK_7,                      6)
-	TAGKEYS(                        XK_8,                      7)
-	TAGKEYS(                        XK_9,                      8)
+	TAGKEYS(                        XK_1,                      0)  /* eDP-1 */
+	TAGKEYS(                        XK_2,                      1)  /* DP-1  */
+	TAGKEYS(                        XK_3,                      2)  /* DP-2  */
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
 };
 
