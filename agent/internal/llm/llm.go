@@ -1,5 +1,5 @@
-// Package llm speaks the OpenAI chat-completions dialect, which both vLLM
-// (Laguna on monty) and llama.cpp (the offline fallback on lewis) implement.
+// Package llm speaks the OpenAI chat-completions dialect, which the llama.cpp
+// servers on lewis (the DeepSeek R1 default and the MoE fallback) implement.
 package llm
 
 import (
@@ -163,7 +163,7 @@ func (c *Client) Chat(ctx context.Context, msgs []Message, tools []Tool) (*Messa
 }
 
 // Probe reports whether the backend answers, for the status line and for
-// automatic fallback when monty is off-network.
+// automatic fallback when a preferred backend is not yet running.
 func (c *Client) Probe(ctx context.Context) error {
 	url := strings.TrimSuffix(c.backend.BaseURL, "/") + "/models"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
