@@ -15,17 +15,18 @@ type Registry struct {
 
 // DefaultRegistry is the built-in backend set.
 //
-// Laguna is the default because it is the strongest model available, but it
-// runs only on monty and is unreachable off-network. The llama.cpp backend on
-// lewis is the offline fallback -- a genuinely different, smaller model, not
-// the same weights relocated.
+// The default is the strongest model reachable from this host, and the
+// offline fallback is a genuinely different, smaller model on lewis -- not
+// the same weights relocated. GLM lived on monty and was unreachable
+// off-network; it is retired here in favour of the lewis R1 server, which
+// autostarts on demand and is therefore the default that actually answers.
 func DefaultRegistry() *Registry {
 	r := &Registry{backends: map[string]Backend{}}
 	r.Add(Backend{
-		Name:    "glm",
-		BaseURL: "http://10.0.0.1:30001/v1",
-		Model:   "glm-5.3-flash",
-		Note:    "GLM-5.3-Flash (llama.cpp on monty) — default, needs network",
+		Name:    "deepseek",
+		BaseURL: "http://127.0.0.1:8082/v1",
+		Model:   "deepseek-r1-distill-qwen:14b",
+		Note:    "DeepSeek-R1-Distill-Qwen 14B (llama.cpp on lewis) — default, autostarts",
 	})
 	r.Add(Backend{
 		Name:    "qwen",
@@ -35,9 +36,9 @@ func DefaultRegistry() *Registry {
 	})
 	r.Add(Backend{
 		Name:    "local",
-		BaseURL: "http://localhost:8083/v1",
-		Model:   "local",
-		Note:    "qwen3-30b-a3b (llama.cpp on lewis) — offline fallback",
+		BaseURL: "http://127.0.0.1:8083/v1",
+		Model:   "qwen3-30b-a3b:moe",
+		Note:    "Qwen3-30B-A3B MoE (llama.cpp on lewis) — offline fallback",
 	})
 	return r
 }

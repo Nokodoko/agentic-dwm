@@ -60,8 +60,11 @@ func run(socket, backend, ask string) error {
 		}
 		chosen = b
 	} else {
-		// Prefer the GLM backend, fall back to the local model off-network.
-		if chosen, err = reg.FirstReachable(ctx, "glm", "local"); err != nil {
+		// Prefer the DeepSeek backend, fall back to the local MoE model.
+		// Both live on lewis and autostart on demand, so the fallback is a
+		// genuinely different, smaller model rather than the same weights
+		// relocated -- and neither needs the monty network.
+		if chosen, err = reg.FirstReachable(ctx, "deepseek", "local"); err != nil {
 			return err
 		}
 	}
