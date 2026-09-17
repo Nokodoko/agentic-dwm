@@ -11,9 +11,10 @@
  * monitor unless a rule says otherwise. The six trailing tags are hidden
  * scratchpad tags.
  *
- * Monitor numbering follows Xinerama order (xrandr --listmonitors):
- *   mon 0 / tag 1  eDP-1  2560x1600 @ 1920x0     primary, top right
- *   mon 1 / tag 2  DP-1   1920x1200 @ 0x400      left
+ * Monitor numbering follows Xinerama order (xrandr --listmonitors); the
+ * tag numbering follows the physical layout left-to-right, top-to-bottom:
+ *   mon 1 / tag 1  DP-1   1920x1200 @ 0x400      left
+ *   mon 0 / tag 2  eDP-1  2560x1600 @ 1920x0     primary, top right
  *   mon 2 / tag 3  DP-2   2560x720  @ 1920x1600  strip, below eDP-1
  */
 /* See LICENSE file for copyright and license details. */
@@ -49,8 +50,8 @@ static const char *colors[][3]      = {
 	[SchemeSteam] = { col_gray3, col_gray1, col_purple },
 };
 
-/* tagging — one tag per monitor: laptop (term icon), left (web icon), strip (music icon) */
-static const char *tags[] = { "\xef\x92\x89", "\xef\x82\xac", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+/* tagging — one tag per monitor: left DP-1 (web icon), laptop eDP-1 (term icon), strip DP-2 (music icon) */
+static const char *tags[] = { "\xef\x82\xac", "\xef\x92\x89", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
@@ -63,12 +64,13 @@ static const Rule rules[] = {
 	 *   WM_CLASS(STRING) = instance, class
 	 *   WM_NAME(STRING) = title
 	 *
-	 * singletag rules: tag N == monitor N-1. A rule's tags mask picks the
-	 * monitor (applyrules finds whoever views that tag); tags 0 + monitor -1
-	 * means "open where focus is".
-	 *   tag 1 (1<<0)  eDP-1  terminals, agents, games
-	 *   tag 2 (1<<1)  DP-1   browsers, chat
-	 *   tag 3 (1<<2)  DP-2   media strip
+	 * singletag rules: a rule's tags mask picks the monitor (applyrules
+	 * finds whoever views that tag; the monitor column is only the fallback
+	 * when no monitor views it); tags 0 + monitor -1 means "open where
+	 * focus is".
+	 *   tag 1 (1<<0)  DP-1  (mon 1)  browsers, chat
+	 *   tag 2 (1<<1)  eDP-1 (mon 0)  terminals, agents, games
+	 *   tag 3 (1<<2)  DP-2  (mon 2)  media strip
 	 *   Scratchpads: floating, monitor -1 (follow focus)
 	 */
 	/* class              instance  title           tags mask              isfloating  monitor  iscentered  bw  borderscheme  bordertitle  floatw  floath */
@@ -95,30 +97,30 @@ static const Rule rules[] = {
 	{"Vivaldi-stable",        NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
 	{"Vivaldi-flatpak",       NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- tag 2 / DP-1 (left): browsers + chat --- */
-	{"firefox",               NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"chromium",              NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"qutebrowser",           NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Google-chrome",         NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"teams-for-linux",       NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Slack",                 NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"discord",               NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"ZapZap",                NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Electron",              NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	/* --- tag 1 / DP-1 (left, mon 1): browsers + chat --- */
+	{"firefox",               NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"chromium",              NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"qutebrowser",           NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Google-chrome",         NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"teams-for-linux",       NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Slack",                 NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"discord",               NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"ZapZap",                NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Electron",              NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- tag 1 / eDP-1: terminals, agents, games --- */
-	{"St",                    NULL,     NULL,       1 << 0,            0,           0,      1,          -1, -1,           NULL,        0,      0},
-	{"kitty",                 NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"neovide",               NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"wireshark",             NULL,     NULL,       1 << 0,            0,           0,      -1,         -1, -1,           NULL,        0,      0},
-	{"cmdr-dashboard",        NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-terminal",         NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"overstory-terminal",    NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-feed",             NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-costs",            NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-logs",             NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-errors",           NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"steam",                 NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	/* --- tag 2 / eDP-1 (laptop, mon 0): terminals, agents, games --- */
+	{"St",                    NULL,     NULL,       1 << 1,            0,           0,      1,          -1, -1,           NULL,        0,      0},
+	{"kitty",                 NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"neovide",               NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"wireshark",             NULL,     NULL,       1 << 1,            0,           0,      -1,         -1, -1,           NULL,        0,      0},
+	{"cmdr-dashboard",        NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-terminal",         NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"overstory-terminal",    NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-feed",             NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-costs",            NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-logs",             NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-errors",           NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"steam",                 NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
 
 	/* --- tag 3 / DP-2 (strip): media --- */
 	{"mpv",                   NULL,     NULL,       1 << 2,            0,           2,      0,          -1, -1,           NULL,        0,      0},
@@ -133,8 +135,8 @@ static const Rule rules[] = {
 /* default tags per monitor (index = monitor number). With single_tagset
  * these MUST be pairwise distinct: a tag can only be viewed on one monitor. */
 static const unsigned int defaulttags[] = {
-    1 << 0,   /* mon 0 (eDP-1, 2560x1600):   tag 1 */
-    1 << 1,   /* mon 1 (DP-1, 1920x1200):    tag 2 */
+    1 << 1,   /* mon 0 (eDP-1, 2560x1600):   tag 2 */
+    1 << 0,   /* mon 1 (DP-1, 1920x1200):    tag 1 */
     1 << 2,   /* mon 2 (DP-2, 2560x720):     tag 3 */
 };
 
@@ -331,9 +333,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
-	TAGKEYS(                        XK_1,                      0)  /* eDP-1 */
-	TAGKEYS(                        XK_2,                      1)  /* DP-1  */
-	TAGKEYS(                        XK_3,                      2)  /* DP-2  */
+	TAGKEYS(                        XK_1,                      0)  /* tag 1: DP-1 (left)  */
+	TAGKEYS(                        XK_2,                      1)  /* tag 2: eDP-1 (laptop) */
+	TAGKEYS(                        XK_3,                      2)  /* tag 3: DP-2 (strip) */
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
 };
 

@@ -2638,6 +2638,15 @@ updategeom(void)
 			}
 			cleanupmon(m);
 		}
+		/* single_tagset: monitors may have just been (re)assigned their
+		 * defaulttags, but every client still carries the monitor pointer
+		 * it had before the geometry change. Re-home each client to the
+		 * monitor that now views its tag so c->mon, ISVISIBLE() and the
+		 * focus stack agree (otherwise a window can end up tiled on one
+		 * monitor while c->mon points at another and never gets resized). */
+		if (dirty)
+			for (m = mons; m; m = m->next)
+				attachclients(m);
 		free(unique);
 	} else
 #endif /* XINERAMA */
