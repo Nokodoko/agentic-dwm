@@ -50,8 +50,11 @@ static const char *colors[][3]      = {
 	[SchemeSteam] = { col_gray3, col_gray1, col_purple },
 };
 
-/* tagging — one tag per monitor: left DP-1 (web icon), laptop eDP-1 (term icon), strip DP-2 (music icon) */
-static const char *tags[] = { "\xef\x82\xac", "\xef\x92\x89", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+/* tagging — one tag per monitor: left DP-1 (web icon), laptop eDP-1 (term icon),
+ * HDMI-1 (desktop icon, tag 3), strip DP-2 (music icon, tag 4).
+ * createmon() refuses a monitor whose tag bit lands in SCRATCHTAGS, so there
+ * must be at least as many real tags here as monitors (4 docked). */
+static const char *tags[] = { "\xef\x82\xac", "\xef\x92\x89", "\xef\x84\x9b", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
@@ -68,9 +71,10 @@ static const Rule rules[] = {
 	 * finds whoever views that tag; the monitor column is only the fallback
 	 * when no monitor views it); tags 0 + monitor -1 means "open where
 	 * focus is".
-	 *   tag 1 (1<<0)  DP-1  (mon 1)  browsers, chat
-	 *   tag 2 (1<<1)  eDP-1 (mon 0)  terminals, agents, games
-	 *   tag 3 (1<<2)  DP-2  (mon 2)  media strip
+	 *   tag 1 (1<<0)  DP-1   (mon 1)  browsers, chat
+	 *   tag 2 (1<<1)  eDP-1  (mon 0)  terminals, agents, games
+	 *   tag 3 (1<<2)  HDMI-1 (mon 3)  right-hand 1080p
+	 *   tag 4 (1<<3)  DP-2   (mon 2)  media strip
 	 *   Scratchpads: floating, monitor -1 (follow focus)
 	 */
 	/* class              instance  title           tags mask              isfloating  monitor  iscentered  bw  borderscheme  bordertitle  floatw  floath */
@@ -122,8 +126,8 @@ static const Rule rules[] = {
 	{"cmdr-errors",           NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
 	{"steam",                 NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- tag 3 / DP-2 (strip): media --- */
-	{"mpv",                   NULL,     NULL,       1 << 2,            0,           2,      0,          -1, -1,           NULL,        0,      0},
+	/* --- tag 4 / DP-2 (strip, mon 2): media --- */
+	{"mpv",                   NULL,     NULL,       1 << 3,            0,           2,      0,          -1, -1,           NULL,        0,      0},
 
 	/*
 	 * Trustgraph / localhost:3000 — use Vivaldi app mode.
@@ -137,7 +141,8 @@ static const Rule rules[] = {
 static const unsigned int defaulttags[] = {
     1 << 1,   /* mon 0 (eDP-1, 2560x1600):   tag 2 */
     1 << 0,   /* mon 1 (DP-1, 1920x1200):    tag 1 */
-    1 << 2,   /* mon 2 (DP-2, 2560x720):     tag 3 */
+    1 << 3,   /* mon 2 (DP-2, 2560x720):     tag 4 */
+    1 << 2,   /* mon 3 (HDMI-1, 1920x1080):  tag 3 */
 };
 
 /* layout(s) */
@@ -335,7 +340,8 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
 	TAGKEYS(                        XK_1,                      0)  /* tag 1: DP-1 (left)  */
 	TAGKEYS(                        XK_2,                      1)  /* tag 2: eDP-1 (laptop) */
-	TAGKEYS(                        XK_3,                      2)  /* tag 3: DP-2 (strip) */
+	TAGKEYS(                        XK_3,                      2)  /* tag 3: HDMI-1 (right) */
+	TAGKEYS(                        XK_4,                      3)  /* tag 4: DP-2 (strip) */
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
 };
 
