@@ -18,14 +18,13 @@
  * 2026-09-20, which is exactly why a hand-written defaulttags[] kept losing
  * its mapping over a reboot. Verify with `xrandr --listmonitors`.
  * Current order (2026-09-20) and the tag each monitor views:
- *   mon 0 / tag 1  eDP-1  2560x1600 @ 1920x0     primary, top right (term icon)
- *   mon 1 / tag 2  HDMI-1 1920x1200 @ 4480x400   right  (desktop icon)
- *   mon 2 / tag 3  DP-1   1920x1200 @ 0x400      left   (web icon)
+ *   mon 0 / tag 2  eDP-1  2560x1600 @ 1920x0     primary, top right (term icon)
+ *   mon 1 / tag 3  HDMI-1 1920x1200 @ 4480x400   right  (desktop icon)
+ *   mon 2 / tag 1  DP-1   1920x1200 @ 0x400      left   (web icon)
  *   mon 3 / tag 4  DP-2   2560x720  @ 1920x1600  strip, below eDP-1 (game icon)
- * 2026-09-20: defaulttags[] rewritten for the order above. Tag->connector is
- * now dp1=tag3, edp1=tag1, hdmi1=tag2, dp2=tag4; the tag ICONS are unchanged
- * (tag1 term, tag2 desktop, tag3 web, tag4 game), so only the rules' tag bits
- * moved. See the defaulttags[] block for the probe to re-derive this.
+ * 2026-09-20: defaulttags[] rewritten for the order above. Intended mapping is
+ * DP-1=tag1, eDP-1=tag2, HDMI-1=tag3, DP-2=tag4. See the defaulttags[] block
+ * for the probe to re-derive this after a reboot reorders the outputs.
  */
 /* See LICENSE file for copyright and license details. */
 
@@ -61,15 +60,13 @@ static const char *colors[][3]      = {
 };
 
 /* tagging — one tag per monitor, icons in tag order 1..4:
- *   tag 1  eDP-1   main  term icon
- *   tag 2  HDMI-1 right  desktop icon
- *   tag 3  DP-1    left  web icon
+ *   tag 1  DP-1    left  web icon
+ *   tag 2  eDP-1   main  term icon
+ *   tag 3  HDMI-1  right desktop icon
  *   tag 4  DP-2    strip game icon
- * 2026-09-20: icons unchanged from the 2026-09-19 arrangement; the connector
- * each tag lands on moved with defaulttags[] (see the header comment).
  * createmon() refuses a monitor whose tag bit lands in SCRATCHTAGS, so there
  * must be at least as many real tags here as monitors (4 docked). */
-static const char *tags[] = { "\xef\x80\x81", "\xef\x82\xac", "\xef\x92\x89", "\xef\x84\x9b", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+static const char *tags[] = { "\xef\x82\xac", "\xef\x92\x89", "\xef\x84\x9b", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
@@ -91,10 +88,10 @@ static const Rule rules[] = {
 	 * What is stable is the tag bit: under single_tagset a rule's tags mask
 	 * resolves to whichever monitor currently views that tag, so the tag bit
 	 * is the real routing target and the monitor number is only a fallback.
-	 *   tag 1 (1<<0)  eDP-1  (primary) terminals, agents, games
-	 *   tag 2 (1<<1)  HDMI-1 (right)   right-hand 1920x1200
-	 *   tag 3 (1<<2)  DP-1   (left)    browsers, chat
-	 *   tag 4 (1<<3)  DP-2   (strip)   media strip
+	 *   tag 1 (1<<0)  DP-1   (left)     browsers, chat
+	 *   tag 2 (1<<1)  eDP-1  (primary)  terminals, agents, games
+	 *   tag 3 (1<<2)  HDMI-1 (right)    right-hand 1920x1200
+	 *   tag 4 (1<<3)  DP-2   (strip)    media strip
 	 *   Scratchpads: floating, monitor -1 (follow focus)
 	 */
 	/* class              instance  title           tags mask              isfloating  monitor  iscentered  bw  borderscheme  bordertitle  floatw  floath */
@@ -121,30 +118,30 @@ static const Rule rules[] = {
 	{"Vivaldi-stable",        NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
 	{"Vivaldi-flatpak",       NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- tag 3 / DP-1 (left): browsers + chat --- */
-	{"firefox",               NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"chromium",              NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"qutebrowser",           NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Google-chrome",         NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"teams-for-linux",       NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Slack",                 NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"discord",               NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"ZapZap",                NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Electron",              NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	/* --- tag 1 / DP-1 (left): browsers + chat --- */
+	{"firefox",               NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"chromium",              NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"qutebrowser",           NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Google-chrome",         NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"teams-for-linux",       NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Slack",                 NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"discord",               NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"ZapZap",                NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Electron",              NULL,     NULL,       1 << 0,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- tag 1 / eDP-1 (laptop, primary): terminals, agents, games --- */
-	{"St",                    NULL,     NULL,       1 << 0,            0,           0,      1,          -1, -1,           NULL,        0,      0},
-	{"kitty",                 NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"neovide",               NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"wireshark",             NULL,     NULL,       1 << 0,            0,           0,      -1,         -1, -1,           NULL,        0,      0},
-	{"cmdr-dashboard",        NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-terminal",         NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"overstory-terminal",    NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-feed",             NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-costs",            NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-logs",             NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"cmdr-errors",           NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"steam",                 NULL,     NULL,       1 << 0,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	/* --- tag 2 / eDP-1 (laptop, primary): terminals, agents, games --- */
+	{"St",                    NULL,     NULL,       1 << 1,            0,           0,      1,          -1, -1,           NULL,        0,      0},
+	{"kitty",                 NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"neovide",               NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"wireshark",             NULL,     NULL,       1 << 1,            0,           0,      -1,         -1, -1,           NULL,        0,      0},
+	{"cmdr-dashboard",        NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-terminal",         NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"overstory-terminal",    NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-feed",             NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-costs",            NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-logs",             NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"cmdr-errors",           NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"steam",                 NULL,     NULL,       1 << 1,            0,           0,      0,          -1, -1,           NULL,        0,      0},
 
 	/* --- tag 4 / DP-2 (strip): media --- */
 	{"mpv",                   NULL,     NULL,       1 << 3,            0,          -1,      0,          -1, -1,           NULL,        0,      0},
@@ -168,15 +165,15 @@ static const Rule rules[] = {
  *   xrandr --listmonitors
  *
  * and place each connector's tag bit at the index xrandr prints for it.
- * Intended mapping (stable, by connector): eDP-1=tag1, HDMI-1=tag2,
- * DP-1=tag3, DP-2=tag4.
+ * Intended mapping (stable, by connector): DP-1=tag1, eDP-1=tag2,
+ * HDMI-1=tag3, DP-2=tag4.
  *
  * Order this was written for (2026-09-20, verified with xrandr --listmonitors):
  *   0 eDP-1, 1 HDMI-1, 2 DP-1, 3 DP-2  */
 static const unsigned int defaulttags[] = {
-    1 << 0,   /* mon 0 (eDP-1,  2560x1600): tag 1 (term)    */
-    1 << 1,   /* mon 1 (HDMI-1, 1920x1200): tag 2 (desktop) */
-    1 << 2,   /* mon 2 (DP-1,   1920x1200): tag 3 (web)     */
+    1 << 1,   /* mon 0 (eDP-1,  2560x1600): tag 2 (term)    */
+    1 << 2,   /* mon 1 (HDMI-1, 1920x1200): tag 3 (desktop) */
+    1 << 0,   /* mon 2 (DP-1,   1920x1200): tag 1 (web)     */
     1 << 3,   /* mon 3 (DP-2,   2560x720):  tag 4 (game)    */
 };
 
@@ -373,9 +370,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
-	TAGKEYS(                        XK_1,                      0)  /* tag 1: eDP-1  (main)  */
-	TAGKEYS(                        XK_2,                      1)  /* tag 2: HDMI-1 (right) */
-	TAGKEYS(                        XK_3,                      2)  /* tag 3: DP-1   (left)  */
+	TAGKEYS(                        XK_1,                      0)  /* tag 1: DP-1   (left)  */
+	TAGKEYS(                        XK_2,                      1)  /* tag 2: eDP-1  (main)  */
+	TAGKEYS(                        XK_3,                      2)  /* tag 3: HDMI-1 (right) */
 	TAGKEYS(                        XK_4,                      3)  /* tag 4: DP-2   (strip) */
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
 };
