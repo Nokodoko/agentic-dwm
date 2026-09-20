@@ -28,8 +28,9 @@ static const char *colors[][3]      = {
 	[SchemeSteam] = { col_gray3, col_gray1, col_purple },
 };
 
-/* tagging — nerd font icons: web, chat, term, team, rocket, code, game, slack, music */
-static const char *tags[] = { "\xef\x82\xac", "\xef\x81\xb5", "\xef\x92\x89", "\xef\x83\x80", "\xef\x84\xb5", "\xef\x84\xa1", "\xef\x84\x9b", "\xef\x86\x98", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+/* tagging — nerd font icons: term, chat, web, team, rocket, code, game, slack, music
+ * 2026-09-19: tag 1 and tag 3 icons swapped (tag1 = >_ term, tag3 = www web). */
+static const char *tags[] = { "\xef\x92\x89", "\xef\x81\xb5", "\xef\x82\xac", "\xef\x83\x80", "\xef\x84\xb5", "\xef\x84\xa1", "\xef\x84\x9b", "\xef\x86\x98", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
@@ -44,10 +45,10 @@ static const Rule rules[] = {
 	 *
 	 * Tri-monitor pertag rules:
 	 *   Mon 1 (DP-2, 3840x2160, 60Hz, left):
-	 *     - Browsers (www) -> tag 1 (1<<0)
+	 *     - Terminals (>_) -> tag 1 (1<<0)
 	 *     - Chat (cht) -> tag 2 (1<<1)
 	 *   Mon 0 (DP-0, 3840x2160, 144Hz, right):
-	 *     - Terminals (>_) -> tag 3 (1<<2)
+	 *     - Browsers (www) -> tag 3 (1<<2)
 	 *     - Teams (tms) -> tag 4 (1<<3)
 	 *   Mon 2 (DP-1-4, 2560x720, 240Hz, bottom):
 	 *     - Rocket -> tag 5 (1<<4)
@@ -77,13 +78,11 @@ static const Rule rules[] = {
 	{"wezterm-tabtiler",  NULL,     NULL,           0,                     1,          -1,      1,           1, SchemeOlr,    "tiles",     1100,   650},
 	{"trustgraph-viewer", NULL,     NULL,           0,                     1,          -1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- Mon 1 (DP-2): Tag 1 (browsers, 1<<0) --- */
-	{"firefox",               NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Vivaldi-stable",        NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Vivaldi-flatpak",       NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"chromium",              NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"qutebrowser",           NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
-	{"Google-chrome",         NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
+	/* --- Mon 1 (DP-2): Tag 1 (terminals, 1<<0) --- */
+	{"St",                    NULL,     NULL,       1,                 0,           1,      1,          -1, -1,           NULL,        0,      0},
+	{"org.wezfurlong.wezterm",NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"neovide",               NULL,     NULL,       1,                 0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"wireshark",             NULL,     NULL,       1,                 0,           1,      -1,         -1, -1,           NULL,        0,      0},
 
 	/* --- Mon 1 (DP-2): Tag 2 (chat, 1<<1) --- */
 	{"teams-for-linux",       NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
@@ -92,11 +91,13 @@ static const Rule rules[] = {
 	{"ZapZap",                NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"Electron",              NULL,     NULL,       1 << 1,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- Mon 0 (DP-0): Tag 3 (terminals, 1<<2) --- */
-	{"St",                    NULL,     NULL,       1 << 2,            0,           0,      1,          -1, -1,           NULL,        0,      0},
-	{"org.wezfurlong.wezterm",NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"neovide",               NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
-	{"wireshark",             NULL,     NULL,       1 << 2,            0,           0,      -1,         -1, -1,           NULL,        0,      0},
+	/* --- Mon 0 (DP-0): Tag 3 (browsers, 1<<2) --- */
+	{"firefox",               NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"Vivaldi-stable",        NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"Vivaldi-flatpak",       NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"chromium",              NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"qutebrowser",           NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
+	{"Google-chrome",         NULL,     NULL,       1 << 2,            0,           0,      0,          -1, -1,           NULL,        0,      0},
 
 	/* --- Mon 0 (DP-0): Tag 4 (team/agents, 1<<3) --- */
 	{"cmdr-dashboard",        NULL,     NULL,       1 << 3,            0,           0,      0,          -1, -1,           NULL,        0,      0},
@@ -125,8 +126,8 @@ static const Rule rules[] = {
 
 /* default tags per monitor (index = monitor number) */
 static const unsigned int defaulttags[] = {
-    1 << 2,   /* mon 0 (DP-0, 144Hz):   tag 3 (>_)  */
-    1 << 0,   /* mon 1 (DP-2, 60Hz):    tag 1 (www) */
+    1 << 2,   /* mon 0 (DP-0, 144Hz):   tag 3 (www) */
+    1 << 0,   /* mon 1 (DP-2, 60Hz):    tag 1 (>_)  */
     1 << 4,   /* mon 2 (DP-1-4, 240Hz): tag 5 (rkt) */
 };
 
@@ -134,7 +135,7 @@ static const unsigned int defaulttags[] = {
 static const int tagmonmap[] = { 1, 1, 0, 0, 2, 2, 2, 0, 0 };
 /*                                ^  ^  ^  ^  ^  ^  ^  ^  ^
  *                           tag: 1  2  3  4  5  6  7  8  9
- *                          icon: ww ch >_ tm rk cd gm sl mu
+ *                          icon: >_ ch ww tm rk cd gm sl mu
  *                           mon: 1  1  0  0  2  2  2  0  0  */
 
 /* layout(s) */
@@ -271,9 +272,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
-	TAGKEYS(                        XK_1,                      0)  /* www */
+	TAGKEYS(                        XK_1,                      0)  /* >_  */
 	TAGKEYS(                        XK_2,                      1)  /* cht */
-	TAGKEYS(                        XK_3,                      2)  /* >_  */
+	TAGKEYS(                        XK_3,                      2)  /* www */
 	TAGKEYS(                        XK_4,                      3)  /* tms */
 	TAGKEYS(                        XK_5,                      4)  /* rkt */
 	TAGKEYS(                        XK_6,                      5)  /* cod */
