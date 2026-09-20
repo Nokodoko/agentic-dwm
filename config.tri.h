@@ -71,7 +71,14 @@ static const char *colors[][3]      = {
  * correct only for the pre-reboot mapping.
  * createmon() refuses a monitor whose tag bit lands in SCRATCHTAGS, so there
  * must be at least as many real tags here as monitors (4 docked). */
-static const char *tags[] = { "\xef\x92\x89", "\xef\x82\xac", "\xef\x80\x81", "\xef\x84\x9b", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+/* Codepoints decoded from the legend in ~/bling/dwm/config.h:31
+ *   "nerd font icons: term, chat, web, team, rocket, code, game, slack, music"
+ * matched positionally against that file's tags[] list:
+ *   \xef\x92\x89 term   \xef\x81\xb5 chat   \xef\x82\xac web   \xef\x83\x80 team
+ *   \xef\x84\xb5 rocket \xef\x84\xa1 code   \xef\x84\x9b game  \xef\x86\x98 slack
+ *   \xef\x80\x81 music
+ * Do not decode these by eye again — that produced four wrong guesses. */
+static const char *tags[] = { "\xef\x82\xac", "\xef\x92\x89", "\xef\x80\x81", "\xef\x84\x9b", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
