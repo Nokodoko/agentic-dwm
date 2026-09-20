@@ -69,24 +69,35 @@ come back within seconds. Fixed 2026-09-18 with
 for USB 27c0:0859 so X and libinput never add it. Touch on the strip panel is
 gone on purpose. Delete that rule and run `udevadm trigger` to get it back.
 
-## Third finding: DPMS itself cannot be used with the strip monitor
+## Third finding: plain DPMS is the right answer (gamma hack was a mistake)
 
-With the touchscreen ignored, `xset dpms force off` still lasted ~3 s. The
-DP-2 strip (EDID vendor CRX, USB-C portable) drops its DisplayPort link when
-it loses signal and reconnects a few seconds later. modesetting re-reads its
-EDID on that hotplug and re-lights every CRTC, and the X idle counter resets.
-Hardware behaviour, not fixable in software.
+I briefly concluded DPMS could not be used and switched the script to a
+gamma-black + backlight-off workaround. That was WRONG and is what the user
+complained about: `xrandr --brightness 0` leaves the backlight lit, and waking
+re-ran a layout so recovery was slow. Reverted 2026-09-19.
 
-Final design in `idle-suspend.sh` (`IDLE_BLANK_MODE=gamma`, the default):
-`xrandr --output <each> --brightness 0` on every monitor plus
-`bl_power=4` on `/sys/class/backlight/amdgpu_bl1` via `sudo -n`. Panels stay
-powered but black, nothing re-enumerates. Input restores brightness 1 and
-`bl_power=0`. `IDLE_BLANK_MODE=dpms` in the unit brings back real DPMS if the
-strip monitor is ever gone.
+DPMS works fine once the two real confounds are gone:
+1. The service was talking to the wrong X server (`:0` vs the live `:1`) — see
+   the DISPLAY-from-active-VT fix above.
+2. The strip's touchscreen re-enumerated on panel power-down and reset the idle
+   counter — fixed by the udev ignore rule above.
 
-Verification caveat: the idle counter cannot be tested while the user is
-typing. A real test is leaving the desk for 6 minutes and reading
-`journalctl --user -u idle-suspend` for "blanking panels" / "restoring panels".
+Verified 2026-09-19 on `:1`: `xset dpms force off` put eDP-1, DP-1 and DP-2 all
+to kernel DPMS `Off` (backlights off) and they STAYED off while the idle
+counter climbed 154k -> 162k ms with no input; `xset dpms force on` woke all
+three instantly. The strip does still drop and re-add its touchscreen on USB
+when it powers down, but libinput ignores that device so the idle counter is
+untouched.
+
+Final design in `idle-suspend.sh`: `panels_off() { xset dpms force off; }`,
+re-forced every 30 s poll while idle >= 300 s; real keyboard/mouse input wakes
+everything via X's own DPMS. `IDLE_SUSPEND_SEC=0` keeps it panels-only so the
+host stays reachable over the network.
+
+Verification caveat: the idle counter cannot be tested while the user is typing
+in a terminal on `:1` — that IS input and resets it. A real test is leaving the
+desk for 5 minutes and reading `journalctl --user -u idle-suspend` for the
+"DPMS off" line.
 
 ## How to check next time
 
