@@ -71,7 +71,7 @@ static const char *colors[][3]      = {
  * correct only for the pre-reboot mapping.
  * createmon() refuses a monitor whose tag bit lands in SCRATCHTAGS, so there
  * must be at least as many real tags here as monitors (4 docked). */
-static const char *tags[] = { "\xef\x84\x9b", "\xef\x92\x89", "\xef\x82\xac", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+static const char *tags[] = { "\xef\x92\x89", "\xef\x82\xac", "\xef\x80\x81", "\xef\x84\x9b", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
