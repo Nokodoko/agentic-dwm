@@ -64,9 +64,14 @@ static const char *colors[][3]      = {
  *   tag 2  eDP-1   main  term icon
  *   tag 3  HDMI-1  right desktop icon
  *   tag 4  DP-2    strip game icon
+ * The icon list is NOT the same list the pertag configs use: it must follow
+ * the tag->connector mapping in defaulttags[], and that mapping shifted when
+ * the Xinerama order changed. 2026-09-19: tags 1 and 3 swapped so tag 1 shows
+ * web (DP-1) and tag 3 shows desktop (HDMI-1). The previous order here was
+ * correct only for the pre-reboot mapping.
  * createmon() refuses a monitor whose tag bit lands in SCRATCHTAGS, so there
  * must be at least as many real tags here as monitors (4 docked). */
-static const char *tags[] = { "\xef\x82\xac", "\xef\x92\x89", "\xef\x84\x9b", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
+static const char *tags[] = { "\xef\x84\x9b", "\xef\x92\x89", "\xef\x82\xac", "\xef\x80\x81", "SP", "SP2", "OLR", "AI", "STM", "SSH" };
 #define SCRATCHPAD_TAG (1 << (LENGTH(tags) - 6))
 #define BTOP_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 5))
 #define OLR_SCRATCHPAD_TAG (1 << (LENGTH(tags) - 4))
