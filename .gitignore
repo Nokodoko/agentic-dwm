@@ -1,3 +1,13 @@
 CLAUDE.md
 GEMINI.md
 .todos/
+
+# Build artifacts (previously committed; now untracked)
+dwm
+drw
+dwm-msg
+dwm-bar
+dwm-status
+*.o
+*.rej
+*.orig
