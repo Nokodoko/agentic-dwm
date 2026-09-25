@@ -99,6 +99,76 @@ in a terminal on `:1` — that IS input and resets it. A real test is leaving th
 desk for 5 minutes and reading `journalctl --user -u idle-suspend` for the
 "DPMS off" line.
 
+## Fourth finding (2026-09-24): dock-monitor was the re-lighter, not the touchscreen
+
+Symptom changed. Panels no longer stayed lit — they blanked at 5 min, then
+flashed off/on repeatedly for as long as the desk stayed idle. The earlier
+findings (wrong X server, wch touchscreen) were both still fixed; the udev
+ignore rule was verified working (`LIBINPUT_IGNORE_DEVICE=1` on the device, and
+`wch.cn TouchScreen` absent from `xinput list`), so neither applied.
+
+The actual loop, verified end to end:
+
+1. `idle-suspend` hits 300 s idle and runs `xset dpms force off`.
+2. **`xset dpms force off` itself emits a DRM `change` uevent.** Captured
+   directly with `udevadm monitor --subsystem-match=drm --udev`.
+3. That uevent wakes `dock-monitor.sh`, which runs `wait_for_crtcs` ->
+   `xrandr --output DP-1 --off`.
+4. **That modeset resets the X idle counter to ~0 and re-lights the panels.**
+   Measured: idle 290830 ms -> 1088 ms, `Monitor is Off` -> `On`, across that
+   single `--off`.
+5. Next poll sees `idle < 300`, so `idle-suspend` runs `xset dpms force on`.
+   Counter climbs to 300 again. Repeat every ~30 s.
+
+So it was never two sleep functions competing: it was the blanker and the
+hotplug handler, with DPMS as the trigger between them. `systemctl suspend` was
+never involved (`IDLE_SUSPEND_SEC=0`, panels-only mode).
+
+Decisive A/B: `systemctl --user stop dock-monitor.service`, then force DPMS off.
+Panels stayed dark and the idle counter climbed monotonically (72 s -> 102 s,
+no resets); only real trackpad input woke them. With dock-monitor running the
+same force-off re-lit within ~30 s.
+
+### Why the obvious fix is wrong
+
+Gating dock-monitor on "the connected-output set changed" does NOT work, because
+**powering a panel down makes it drop its hotplug-detect line**. The connected
+set genuinely blinks and recovers by itself, with no human involved:
+
+```
+DP-1,DP-2,eDP-1,HDMI-1  ->  DP-1,DP-2,eDP-1  ->  DP-1,DP-2,eDP-1,HDMI-1
+```
+
+Observed at +5 s in one run and +14.5 s in another. An instantaneous
+fingerprint comparison therefore fires on every blank. (My first attempt did
+exactly this and failed in testing.)
+
+### Fix
+
+`dock-monitor.sh` now requires the change to **persist**: on a differing
+fingerprint it waits `TOPOLOGY_CONFIRM_SEC` (20 s) and re-reads, acting only if
+the set still differs. Baseline is seeded at startup into
+`/tmp/dock-monitor-topology`. Verified in the log:
+
+```
+Topology differs ('DP-1,DP-2,eDP-1,HDMI-1' -> 'DP-1,DP-2,eDP-1'); confirming over 20s
+Topology settled back to 'DP-1,DP-2,eDP-1,HDMI-1' -- transient (DPMS power blink), ignoring
+```
+
+Cost: a genuine dock/undock is applied 20 s later than before.
+
+### Two traps that cost time
+
+- **`xset dpms force on` resets the idle counter.** Sampling `xidle` right after
+  a force-on shows a small value and looks like a mysterious input source. It is
+  the force-on itself.
+- **`xrandr --output X --off` then re-enabling re-enumerates Xinerama indices.**
+  dwm's `defaulttags[]` is positional over Xinerama order, so probing with
+  `--off` during diagnosis scrambles the tag->monitor mapping. dwm caches
+  geometry and re-reads it on a root ConfigureNotify, not on `xprop`; after any
+  `--off`/`--on` probing, reapply the layout and restart dwm (the running binary
+  is untouched — `.xinitrc` relaunches it).
+
 ## How to check next time
 
 ```bash
