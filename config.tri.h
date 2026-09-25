@@ -126,11 +126,15 @@ static const Rule rules[] = {
 	{"gpu-select",        NULL,     NULL,           0,                     1,          -1,      1,           1, SchemeOlr,    "gpu",        800,   500},
 	{"trustgraph-viewer", NULL,     NULL,           0,                     1,          -1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- Browsers that follow focus (mon -1, current tag): grafana/datadog + webui on eDP-1 too --- */
-	{"Vivaldi-stable",        NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
-	{"Vivaldi-flatpak",       NULL,     NULL,       0,                 0,          -1,      0,          -1, -1,           NULL,        0,      0},
+	/* --- tag 3 / DP-1 (left): browsers + chat ---
+	 * Vivaldi used to be tags=0 / mon=-1 ("follow focus") so that grafana and
+	 * webui would open on whatever tag had focus. That made it the ONLY
+	 * non-floating, non-scratchpad rule with no tag, so Vivaldi opened on the
+	 * terminal tag whenever the terminal had focus and the browser tag never
+	 * collected the browser. 2026-09-22: pin it with the other browsers. */
+	{"Vivaldi-stable",        NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
+	{"Vivaldi-flatpak",       NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 
-	/* --- tag 3 / DP-1 (left): browsers + chat --- */
 	{"firefox",               NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"chromium",              NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
 	{"qutebrowser",           NULL,     NULL,       1 << 2,            0,           1,      0,          -1, -1,           NULL,        0,      0},
