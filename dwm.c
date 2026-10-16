@@ -698,8 +698,15 @@ clientmessage(XEvent *e)
 			setfullscreen(c, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD    */
 				|| (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !c->isfullscreen)));
 	} else if (cme->message_type == netatom[NetActiveWindow]) {
-		if (c != selmon->sel && !c->isurgent)
-			seturgent(c, 1);
+		/* Honour activation requests instead of only marking urgent: a
+		 * client asking for _NET_ACTIVE_WINDOW (a browser raising a tab in
+		 * another of its windows) gets that window's monitor and tag shown
+		 * and focused. seturgent alone is a no-op for clients that set no
+		 * WM_HINTS, which left such requests silently dropped. */
+		if (c != selmon->sel) {
+			const Arg a = {.ui = c->win};
+			focuswin(&a);
+		}
 	}
 }
 
