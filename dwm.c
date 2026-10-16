@@ -240,6 +240,7 @@ static void resizeclient(Client *c, int x, int y, int w, int h);
 static void resizemouse(const Arg *arg);
 static void restack(Monitor *m);
 static void run(void);
+static int sameclass(Client *a, Client *b);
 static void scan(void);
 static int sendevent(Client *c, Atom proto);
 static void sendmon(Client *c, Monitor *m);
@@ -684,6 +685,27 @@ cleanupmon(Monitor *mon)
 	free(mon);
 }
 
+static int
+sameclass(Client *a, Client *b)
+{
+	XClassHint ca = { NULL, NULL }, cb = { NULL, NULL };
+	int same;
+
+	XGetClassHint(dpy, a->win, &ca);
+	XGetClassHint(dpy, b->win, &cb);
+	same = ca.res_class && cb.res_class && !strcmp(ca.res_class, cb.res_class);
+	if (ca.res_name)
+		XFree(ca.res_name);
+	if (ca.res_class)
+		XFree(ca.res_class);
+	if (cb.res_name)
+		XFree(cb.res_name);
+	if (cb.res_class)
+		XFree(cb.res_class);
+
+	return same;
+}
+
 void
 clientmessage(XEvent *e)
 {
@@ -698,14 +720,21 @@ clientmessage(XEvent *e)
 			setfullscreen(c, (cme->data.l[0] == 1 /* _NET_WM_STATE_ADD    */
 				|| (cme->data.l[0] == 2 /* _NET_WM_STATE_TOGGLE */ && !c->isfullscreen)));
 	} else if (cme->message_type == netatom[NetActiveWindow]) {
-		/* Honour activation requests instead of only marking urgent: a
-		 * client asking for _NET_ACTIVE_WINDOW (a browser raising a tab in
-		 * another of its windows) gets that window's monitor and tag shown
-		 * and focused. seturgent alone is a no-op for clients that set no
-		 * WM_HINTS, which left such requests silently dropped. */
+		/* Honour an activation request only when it cannot disrupt the user:
+		 * the client is not already focused, it carries a real tag (scratchpad
+		 * clients would drag the monitor to its previous tag), no fullscreen
+		 * client holds the lock, and the source is either a pager/user tool
+		 * (l[0] == 2) or shares the WM_CLASS of the focused client. Anything
+		 * else only marks the client urgent. */
 		if (c != selmon->sel) {
-			const Arg a = {.ui = c->win};
-			focuswin(&a);
+			if ((c->tags & TAGMASK)
+			&& !(selmon->sel && selmon->sel->isfullscreen && lockfullscreen)
+			&& (cme->data.l[0] == 2 || (selmon->sel && sameclass(selmon->sel, c)))) {
+				const Arg a = {.ui = c->win};
+				focuswin(&a);
+			} else if (!c->isurgent) {
+				seturgent(c, 1);
+			}
 		}
 	}
 }
